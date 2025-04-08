@@ -29,7 +29,13 @@ Add nixbld users to nixbld group, manually because standard command fails to add
 - group number might not be 997 on your system
 
 nixbld:x:997:nixbld1,nixbld2,nixbld3,nixbld4,nixbld5,nixbld6,nixbld7,nixbld8,nixbld9,nixbld10
- 
+
+- I didn't need to modify /etc/group but this might be because commands I used to modify group membership might have done this already, while failing to change /etc/passwd file. You might need to edit /etc/group as follows:
+
+nixbld:x:997:nixbld1,nixbld2,nixbld3,nixbld4,nixbld5,nixbld6,nixbld7,nixbld8,nixbld9,nixbld10
+
+
+Create nix directory with correct permissions
 
 mkdir -p /nix
 chown root:root /nix
