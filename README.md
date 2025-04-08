@@ -8,6 +8,7 @@ Log in to your Proxmox host as root (via SSH or console).
 Add the nixbld group:
 
 groupadd -r nixbld
+
 -r makes it a system group, which is what Nix expects.
 
 Create nixbld Users
