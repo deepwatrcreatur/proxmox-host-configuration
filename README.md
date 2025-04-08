@@ -1,7 +1,3 @@
-Here’s the text with Markdown added to the code snippets:
-
----
-
 Steps to install nix on Proxmox: (with quotes from Grok)
 
 ### Create the nixbld Group
