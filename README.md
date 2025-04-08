@@ -6,23 +6,23 @@ Create the nixbld Group
 Log in to your Proxmox host as root (via SSH or console).
 
 Add the nixbld group:
+
 groupadd -r nixbld
 -r makes it a system group, which is what Nix expects.
 
 Create nixbld Users
 
 Nix typically creates 10 build users (nixbld1 through nixbld10) by default. You can adjust this later, but let’s set up a few for now:
+
 for i in {1..10}; do
   useradd -r -g nixbld -d /var/empty -s /sbin/nologin -c "Nix build user $i" nixbld$i
 done
+
 -r: System user.
 -g nixbld: Assigns them to the nixbld group.
 -d /var/empty: No home directory.
 -s /sbin/nologin: Prevents login.
 -c: Comment for clarity.
-
-Create the nix directory
-- part of the automated installation process, but since that doesn't work well on Proxmox, will be done here in preparation
 
 Add nixbld users to nixbld group, manually because standard command fails to add them to group
 - modify line in /etc/passwd file describing members of nixbld
@@ -36,6 +36,8 @@ nixbld:x:997:nixbld1,nixbld2,nixbld3,nixbld4,nixbld5,nixbld6,nixbld7,nixbld8,nix
 
 
 Create nix directory with correct permissions
+
+-part of the automated installation process, but since that doesn't work well on Proxmox, will be done here in preparation
 
 mkdir -p /nix
 chown root:root /nix
