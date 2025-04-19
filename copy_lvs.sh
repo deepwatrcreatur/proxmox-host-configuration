@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # --- Configuration ---
-DEST_USER="deepwatrcreatur"
-DEST_IP="10.10.10.148"
-DEST_BASE_DIR="/Volumes/Work/lvm" # MUST exist on the destination Mac
+DEST_USER="root"
+DEST_IP="10.10.11.57"
+DEST_BASE_DIR="/mnt/pve/fast/lvm_backups" # MUST exist on the destination Mac
 SOURCE_VG="pve"                  # Proxmox Volume Group name
 BLOCK_SIZE="1M"                  # dd block size (1M is usually good)
 
@@ -57,25 +57,39 @@ for lv_name in "${LVS_TO_COPY[@]}"; do
     # Construct the dd command
     # Using status=progress requires a relatively modern version of dd
     # Quoting is important for the remote command
-    dd_command="dd if=\"${source_path}\" bs=\"${BLOCK_SIZE}\" status=progress | ssh \"${DEST_USER}@${DEST_IP}\" \"dd of=\\\"${dest_full_path}\\\" bs=\\\"${BLOCK_SIZE}\\\"\""
 
-    echo "    Executing: ${dd_command}" # Shows the command being run (without status=progress for clarity here)
+    # Construct the remote command separately
+    remote_cmd="dd of=\"${dest_full_path}\" bs=\"${BLOCK_SIZE}\""
 
-    # Execute the command using eval to handle the piping and quoting correctly
-    eval "dd if=\"${source_path}\" bs=\"${BLOCK_SIZE}\" status=progress | ssh \"${DEST_USER}@${DEST_IP}\" \"dd of=\\\"${dest_full_path}\\\" bs=\\\"${BLOCK_SIZE}\\\"\""
+    echo "    Executing: dd if=\"${source_path}\" bs=\"${BLOCK_SIZE}\" status=progress | ssh \"${DEST_USER}@${DEST_IP}\" \"${remote_cmd}\""
 
-    # Check the exit status of the pipe (PIPESTATUS is a bash array)
-    # Index 0: dd (local)
-    # Index 1: ssh (which includes the remote dd)
+    # Execute the command without eval
+    dd if="${source_path}" bs="${BLOCK_SIZE}" status=progress | ssh "${DEST_USER}@${DEST_IP}" "${remote_cmd}"
+
+    # Capture exit statuses immediately
     local_dd_status=${PIPESTATUS[0]}
     remote_ssh_dd_status=${PIPESTATUS[1]}
 
-    if [ ${local_dd_status} -eq 0 ] && [ ${remote_ssh_dd_status} -eq 0 ]; then
+    # Capture exit statuses immediately
+    local_dd_status=${PIPESTATUS[0]}
+    remote_ssh_dd_status=${PIPESTATUS[1]}
+
+    # Check if BOTH commands succeeded (exit code 0)
+    # Use parameter expansion ${remote_ssh_dd_status:-1} to default an empty status to 1 (non-zero)
+    # This prevents the "integer expression expected" error and treats empty status as failure.
+    if [ "${local_dd_status}" -eq 0 ] && [ "${remote_ssh_dd_status:-1}" -eq 0 ]; then
         echo "    SUCCESS: Successfully copied ${lv_name}."
     else
-        echo "    ERROR: Copy failed for ${lv_name}."
-        echo "           Local dd exit code: ${local_dd_status}"
-        echo "           SSH/Remote dd exit code: ${remote_ssh_dd_status}"
+        # Determine if the failure was local dd or remote/unknown
+        if [ "${local_dd_status}" -ne 0 ]; then
+             echo "    ERROR: Local dd failed for ${lv_name}."
+             echo "           Local dd exit code: ${local_dd_status}"
+             echo "           SSH/Remote dd exit code: ${remote_ssh_dd_status:-(unknown)}"
+        else
+             # Local dd was OK (0), so the issue is remote or status capture
+             echo "    WARNING: Local dd successful, but remote SSH/dd exit status is non-zero or unknown (${remote_ssh_dd_status:-(unknown)})."
+             echo "             >> Recommend verifying file integrity on destination: ${dest_full_path}"
+        fi
     fi
     echo "---"
 done
