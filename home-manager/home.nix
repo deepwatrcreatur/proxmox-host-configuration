@@ -18,6 +18,7 @@
     pkgs.git
     pkgs.helix
     pkgs.rsync
+    pkgs.iperf3
   ];
 
   # Configure programs
