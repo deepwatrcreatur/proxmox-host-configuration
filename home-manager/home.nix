@@ -1,74 +1,34 @@
-{ config, pkgs, ... }:
+# ~/.config/home-manager/home.nix
+{ config, pkgs, lib, ... }:
 
 {
-  # Required fields
-  home.username = "root";  # Replace with your actual username on Proxmox
-  home.homeDirectory = "/root";  # Replace with your actual home directory
+  # Home Manager needs a state version.
+  home.stateVersion = "24.05"; # Or the version corresponding to your nixpkgs/home-manager inputs
 
-  # Specify the state version (match your Nixpkgs version, e.g., "23.11" or "24.05")
-  home.stateVersion = "23.11";  # Adjust this based on your Nix channel version
+  # Set the username and home directory for Home Manager
+  home.username = "root";
+  home.homeDirectory = "/root"; # Home directory for the root user
 
-  # Packages to install in your user environment
-  home.packages = with pkgs; [
-    htop      # System monitoring tool
-    git       # Version control
-    tmux      # Terminal multiplexer
-    curl      # HTTP client
-    neofetch  # System info display
-    helix
+  # Add packages
+  home.packages = [
+    pkgs.htop
+    pkgs.btop
+    pkgs.bat
+    pkgs.gh
+    pkgs.git
+    pkgs.helix
+    pkgs.rsync
   ];
 
-  # Enable and configure programs (optional but useful)
-  programs = {
-    # Enable and configure Bash
-    bash = {
-      enable = true;
-      shellAliases = {
-        ll = "ls -la";  # Example alias
-        gs = "git status";
-      };
-      initExtra = ''
-        # Add custom Bash startup commands here
-        export PS1="\u@\h:\w\$ "  # Customize prompt
-      '';
-    };
-
-    # Enable Git with basic configuration
-    git = {
-      enable = true;
-      userName = "Anwer Khan";  # Replace with your name
-      userEmail = "anwer@deepwatercreature.com";  # Replace with your email
-      extraConfig = {
-        init.defaultBranch = "main";
-      };
-    };
-
-    # Enable Vim with some customization
-    vim = {
-      enable = true;
-      settings = {
-        number = true;  # Line numbers
-        relativenumber = true;
-      };
-      extraConfig = ''
-        set tabstop=2
-        set shiftwidth=2
-        set expandtab
-      '';
-    };
+  # Configure programs
+  programs.git = {
+    enable = true;
+    userName = "Anwer Khan";
+    userEmail = "deepwatrcreatur@gmail.com";
   };
 
-  # Manage dotfiles (e.g., custom .bashrc or other configs)
-  home.file = {
-    ".custom-script.sh" = {
-      text = ''
-        #!/bin/sh
-        echo "Hello from your custom script!"
-      '';
-      executable = true;
-    };
-  };
+  programs.bash.enable = true; # Example: enable bash integration
 
-  # Enable Home Manager to manage itself
+  # Let Home Manager manage itself if you want the `home-manager` command available
   programs.home-manager.enable = true;
 }
