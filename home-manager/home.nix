@@ -19,6 +19,7 @@
     pkgs.helix
     pkgs.rsync
     pkgs.iperf3
+    pkgs.lazygit
   ];
 
   # Configure programs
