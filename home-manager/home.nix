@@ -20,6 +20,7 @@
     pkgs.rsync
     pkgs.iperf3
     pkgs.lazygit
+    pkgs.lsd
   ];
 
   # Configure programs
