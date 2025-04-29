@@ -44,7 +44,7 @@
       la = "lsd -a";
       lla = "lsd -la";
       ".." = "cd ..";
-      update = "home-manager switch --flake $HOME/proxmox-host-configuration#$(hostname)";
+      update = "home-manager switch --flake $HOME/proxmox-host-configuration/home-manager#$(hostname)";
     };
     plugins = [
       { name = "fzf"; src = pkgs.fishPlugins.fzf; }
