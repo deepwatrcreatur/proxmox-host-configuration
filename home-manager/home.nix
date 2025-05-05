@@ -34,10 +34,17 @@
 
   programs.fish = {
     enable = true;
-    shellInit = ''
-      set -gx EDITOR hx
-      set -gx VISUAL hx
-    '';
+
+  shellInit = ''
+    # Nix integration for Fish shell
+    if test -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.fish
+      source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.fish
+    end
+
+    set -gx EDITOR hx
+    set -gx VISUAL hx
+  '';
+
     shellAliases = {
       ls = "lsd";
       ll = "lsd -l";
