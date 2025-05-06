@@ -10,9 +10,6 @@
   home.username = "root";
   home.homeDirectory = "/root";
 
-  # ... rest of your config ...
-}
-
   # Home Manager needs a state version.
   home.stateVersion = "24.05"; # Or the version corresponding to your nixpkgs/home-manager inputs
 
