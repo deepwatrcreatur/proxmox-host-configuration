@@ -21,6 +21,7 @@
     pkgs.iperf3
     pkgs.lazygit
     pkgs.lsd
+    pkgs.starship
   ];
 
   # Configure programs
@@ -71,6 +72,7 @@
       set -g theme_project_dir_length 1
       set -g theme_show_exit_status yes
       set -g theme_display_git_untracked yes
+      starship init fish | source
     '';
   };
   
