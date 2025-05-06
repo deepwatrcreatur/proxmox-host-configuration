@@ -2,6 +2,17 @@
 { config, pkgs, lib, ... }:
 
 {
+  imports = [
+    ./git.nix
+  ];
+
+  home.stateVersion = "24.05";
+  home.username = "root";
+  home.homeDirectory = "/root";
+
+  # ... rest of your config ...
+}
+
   # Home Manager needs a state version.
   home.stateVersion = "24.05"; # Or the version corresponding to your nixpkgs/home-manager inputs
 
@@ -25,11 +36,6 @@
   ];
 
   # Configure programs
-  programs.git = {
-    enable = true;
-    userName = "Anwer Khan";
-    userEmail = "deepwatrcreatur@gmail.com";
-  };
 
   programs.bash.enable = true; # Example: enable bash integration
 
