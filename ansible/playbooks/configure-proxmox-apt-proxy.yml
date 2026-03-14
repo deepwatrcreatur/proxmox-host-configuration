@@ -1,0 +1,60 @@
+---
+- name: Configure apt proxy on Proxmox hosts
+  hosts: proxmox
+  become: yes
+  gather_facts: yes
+  vars_files:
+    - ../group_vars/proxmox.yml
+
+  tasks:
+    - name: Install apt proxy auto-detect helper
+      copy:
+        dest: /usr/local/bin/apt-proxy-auto-detect
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          proxy_url="{{ apt_cache_url }}/"
+          report_url="{{ apt_cache_url }}/acng-report.html"
+          target_uri="${1:-}"
+
+          case "$target_uri" in
+            *apt-cache.deepwatercreature.com*|*10.10.11.42*)
+              echo DIRECT
+              exit 0
+              ;;
+          esac
+
+          if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 "$report_url" >/dev/null 2>&1; then
+            echo "$proxy_url"
+          else
+            echo DIRECT
+          fi
+
+    - name: Install apt proxy auto-detect config
+      copy:
+        dest: /etc/apt/apt.conf.d/90apt-proxy
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          Acquire::http::Proxy "DIRECT";
+          Acquire::https::Proxy "DIRECT";
+          Acquire::http::Proxy-Auto-Detect "/usr/local/bin/apt-proxy-auto-detect";
+          Acquire::https::Proxy-Auto-Detect "/usr/local/bin/apt-proxy-auto-detect";
+
+    - name: Refresh apt metadata through the proxy
+      apt:
+        update_cache: yes
+
+    - name: Verify the configured proxy value
+      shell: apt-config dump | grep -i '^Acquire::\\(http\\|https\\)::Proxy'
+      register: apt_proxy_dump
+      changed_when: false
+
+    - name: Show configured apt proxy
+      debug:
+        msg: "{{ apt_proxy_dump.stdout_lines }}"
