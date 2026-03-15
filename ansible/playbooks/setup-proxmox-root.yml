@@ -1,129 +1,118 @@
 ---
-# Playbook to setup Nix and home-manager on Proxmox hosts
-- name: Setup Proxmox hosts with Nix and home-manager
+- name: Bootstrap Proxmox hosts with Determinate Nix and Home Manager
   hosts: proxmox
-  become: yes
-  gather_facts: yes
+  become: true
+  gather_facts: true
   vars_files:
     - ../group_vars/proxmox.yml
 
   handlers:
     - name: Restart nix-daemon
-      systemd:
+      ansible.builtin.systemd:
         name: nix-daemon
         state: restarted
 
-    - name: Reload shell profile
-      debug:
-        msg: "Profile symlink fixed - you may need to reload your shell (exec bash)"
-
   tasks:
-    - name: Check if Nix is already installed
-      stat:
+    - name: Ensure bootstrap packages are installed
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - git
+        state: present
+        update_cache: true
+
+    - name: Check whether Nix is already installed
+      ansible.builtin.stat:
         path: /nix
       register: nix_installation
-      changed_when: false
 
     - name: Install Determinate Nix
-      shell: |
-        curl -fsSL https://install.determinate.systems/nix | sh -s -- install
+      ansible.builtin.shell: |
+        curl -fsSL https://install.determinate.systems/nix | sh -s -- install linux --no-confirm
       args:
+        executable: /bin/bash
         creates: /nix
       when: not nix_installation.stat.exists
 
-    - name: Source Nix environment for subsequent tasks
-      shell: |
-        . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-        {{ ansible_user_shell }} -c 'nix --version'
-      changed_when: false
-      register: nix_version
-      failed_when: false
+    - name: Upgrade Determinate Nix to the latest available release
+      ansible.builtin.command: determinate-nixd upgrade
+      register: determinate_upgrade
+      changed_when: >
+        'Upgrading Determinate Nix' in determinate_upgrade.stdout or
+        'Upgrading Determinate Nixd' in determinate_upgrade.stdout
+      failed_when: determinate_upgrade.rc != 0
 
-    - name: Display Nix version
-      debug:
-        msg: "Nix version: {{ nix_version.stdout }}"
-      when: nix_version.rc == 0
+    - name: Ensure Determinate Nix custom config is present
+      ansible.builtin.copy:
+        dest: /etc/nix/nix.custom.conf
+        mode: "0644"
+        content: |
+          # Written by https://github.com/DeterminateSystems/nix-installer.
+          # The contents below are based on options specified at installation time.
+          substituters = {{ nix_substituters | join(' ') }}
+          trusted-substituters = {{ nix_trusted_substituters | join(' ') }}
+          trusted-public-keys = {{ nix_trusted_public_keys | join(' ') }}
+      notify: Restart nix-daemon
 
-    - name: Check if cache-build-server substituter is configured
-      lineinfile:
-        path: /etc/nix/nix.conf
-        regexp: '^extra-substituters.*cache-build-server'
-        state: absent
-      check_mode: yes
-      register: cache_substituter_check
-      changed_when: false
+    - name: Flush nix-daemon restart handler before using nix
+      ansible.builtin.meta: flush_handlers
 
-    - name: Add cache-build-server as substituter
-      blockinfile:
-        path: /etc/nix/nix.conf
-        marker: "# {mark} ANSIBLE MANAGED BLOCK - cache-build-server"
-        block: |
-          extra-substituters = {{ cache_build_server_url }}
-          extra-trusted-substituters = {{ cache_build_server_url }}
-        create: yes
-        mode: '0644'
-      notify: restart nix-daemon
+    - name: Ensure flake checkout parent directory exists
+      ansible.builtin.file:
+        path: "{{ config_repo_path | dirname }}"
+        state: directory
+        mode: "0755"
 
-    - name: Ensure git is installed (for cloning config)
-      apt:
-        name:
-          - git
-          - curl
-        state: present
-        update_cache: yes
+    - name: Check whether the config repo already exists
+      ansible.builtin.stat:
+        path: "{{ config_repo_path }}/.git"
+      register: config_repo_git
 
-    - name: Check if config repo exists
-      stat:
-        path: "{{ config_repo_path }}"
-      register: config_repo
-
-    - name: Clone configuration repository
-      git:
+    - name: Clone config repo when missing
+      ansible.builtin.git:
         repo: "{{ config_repo_url }}"
         dest: "{{ config_repo_path }}"
-        version: "{{ config_repo_branch | default('main') }}"
-        update: yes
-        force: yes
-      retries: 3
-      delay: 5
+        version: "{{ config_repo_branch }}"
+        update: false
+      when: not config_repo_git.stat.exists
 
-    - name: Remove conflicting files and old configs before home-manager activation
-      block:
-        - name: Remove conflicting files (regular files)
-          file:
-              path: "{{ item }}"
-              state: absent
-          loop: "{{ conflicting_files }}"
-          ignore_errors: yes
+    - name: Mark config repo as a safe git directory
+      ansible.builtin.command:
+        argv:
+          - git
+          - config
+          - --global
+          - --add
+          - safe.directory
+          - "{{ config_repo_path }}"
+      changed_when: false
 
-        - name: Remove old .nix-profile symlink (if it's broken)
-          file:
-              path: "{{ nix_profile_path }}"
-              state: absent
-          when: config_cleanup_files is defined
-          ignore_errors: yes
+    - name: Pull latest config repo changes
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ config_repo_path }}"
+          - pull
+          - --ff-only
+          - origin
+          - "{{ config_repo_branch }}"
+      register: git_pull
+      changed_when: >
+        'Already up to date.' not in git_pull.stdout and
+        'Already up to date.' not in git_pull.stderr
 
-        - name: Remove old bash config files if they're symlinks
-          file:
-              path: "{{ item }}"
-              state: absent
-          loop:
-                - /root/.bashrc
-                - /root/.bash_profile
-                - /root/.profile
-          when: config_cleanup_files is defined
-          failed_when: false
-      always: yes
-
-    - name: Cleanup old backup files
-      file:
+    - name: Remove files that commonly block first Home Manager activation
+      ansible.builtin.file:
         path: "{{ item }}"
         state: absent
-      loop: "{{ cleanup_files }}"
-      ignore_errors: yes
+      loop: "{{ conflicting_files + cleanup_files }}"
+      failed_when: false
 
-    - name: Run home-manager activation
-      shell: |
+    - name: Activate Home Manager config for root
+      ansible.builtin.shell: |
+        set -euo pipefail
         . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
         cd {{ config_repo_path }}
         nix run nixpkgs#home-manager -- switch --flake .#{{ home_manager_output }}
@@ -131,178 +120,28 @@
         executable: /bin/bash
       register: hm_activation
       changed_when: "'Starting Home Manager activation' in hm_activation.stdout"
-      failed_when:
-        - hm_activation.rc != 0
-        - "'Starting Home Manager activation' not in hm_activation.stderr"
-        - "'error' in hm_activation.stderr.lower()"
-      ignore_errors: yes
 
-            - "'profile' in profile_link_target.stdout"
-            - "'home-manager' not in profile_link_target.stdout"
-          notify: Reload shell profile
-        
-        - name: Ensure .nix-profile points to home-manager
-          file:
-            path: "{{ nix_profile_path }}"
-            src: "{{ hm_profile_path }}"
-            state: link
-            force: yes
-          when: current_profile.stat.exists and "'NO_LINK' in profile_link_target.stdout"
-          notify: Reload shell profile
-      register: profile_fix
-      ignore_errors: yes
+    - name: Ensure root profile points to the Home Manager generation
+      ansible.builtin.file:
+        path: "{{ nix_profile_path }}"
+        src: "{{ hm_profile_path }}"
+        state: link
+        force: true
 
-    - name: Wait for shell config files to be regenerated
-      pause:
-        seconds: 2
-
-    - name: Verify shell config files were regenerated
-      block:
-        - name: Check .bashrc was regenerated
-          stat:
-            path: /root/.bashrc
-          register: bashrc_stat
-
-        - name: Verify .bashrc is not a symlink to old generation
-          shell: |
-            readlink /root/.bashrc 2>/dev/null || echo "NO_LINK"
-          register: bashrc_link
-          changed_when: false
-          failed_when: false
-
-        - name: Display .bashrc status
-          debug:
-            msg: |
-              .bashrc exists: {{ bashrc_stat.stat.exists }}
-              Link target: {{ bashrc_link.stdout | default('N/A') }}
-
-    - name: Check home-manager installation
-      stat:
-        path: /root/.local/state/home-manager
-      register: hm_installation
-
-    - name: Display home-manager activation status
-      debug:
-        msg: |
-          Home Manager activation {{ 'completed' if hm_activation.rc == 0 else 'failed' }}
-          Status: {{ hm_activation.rc }}
-          {% if hm_activation.stderr is defined %}
-          Stderr: {{ hm_activation.stderr[-500:] }}
-          {% endif %}
-      when: hm_activation is defined
-
-    - name: Read home-manager news (optional)
-      command: /root/.nix-profile/bin/home-manager news
-      register: hm_news
+    - name: Verify Nix version after bootstrap
+      ansible.builtin.command: /nix/var/nix/profiles/default/bin/nix --version
+      register: nix_version
       changed_when: false
-      failed_when: false
-      when: hm_installation.stat.exists
 
-    - name: Display unread home-manager news count
-      debug:
-        msg: "{{ hm_news.stdout_lines | select('search', 'news items') | list }}"
-      when: hm_news.stdout is defined
+    - name: Verify Home Manager is available
+      ansible.builtin.command: /root/.nix-profile/bin/home-manager --version
+      register: home_manager_version
+      changed_when: false
 
-    - name: Verify installation and tools
-      block:
-        - name: Wait for shell config files to be regenerated
-          pause:
-              seconds: 2
-
-        - name: Check .nix-profile exists and is a link
-          stat:
-              path: "{{ nix_profile_path }}"
-          register: profile_stat
-
-        - name: Verify .nix-profile points to home-manager
-          shell: |
-              readlink {{ nix_profile_path }}
-          register: profile_target
-          changed_when: false
-
-        - name: Verify shell configs were regenerated
-          block:
-                - name: Check .bashrc timestamp
-                  stat:
-                        path: /root/.bashrc
-                  register: bashrc_stat
-
-                - name: Check .bashrc is not old (Dec 31)
-                  debug:
-                        msg: ".bashrc modified: {{ bashrc_stat.stat.mtime | default(0) }} (should be recent)"
-
-                - name: Check .bash_profile timestamp
-                  stat:
-                        path: /root/.bash_profile
-                  register: bash_profile_stat
-
-                - name: Check .profile timestamp
-                  stat:
-                        path: /root/.profile
-                  register: profile_stat
-
-                - name: Verify configs are recent (not from old generation)
-                  debug:
-                        msg: |
-                              .bashrc time: {{ bashrc_stat.stat.mtime | default(0) }}
-                              .bash_profile time: {{ bash_profile_stat.stat.mtime | default(0) }}
-                              .profile time: {{ profile_stat.stat.mtime | default(0) }}
-
-        - name: Verify home-manager in PATH
-          command: /root/.nix-profile/bin/home-manager --version
-          register: hm_version
-          changed_when: false
-          failed_when: false
-
-        - name: Verify atuin is available
-          command: /root/.nix-profile/bin/atuin --version
-          register: atuin_version
-          changed_when: false
-          failed_when: false
-
-        - name: Verify fish shell is available
-          command: which fish
-          environment:
-                PATH: "{{ lookup('env', 'PATH') }}:/root/.nix-profile/bin"
-          register: fish_check
-          changed_when: false
-          failed_when: false
-
-        - name: Verify fnox is available
-          command: /root/.nix-profile/bin/fnox --version
-          register: fnox_version
-          changed_when: false
-          failed_when: false
-
-        - name: Display comprehensive verification results
-          debug:
-                msg: |
-                              ✅ Nix installed
-                              {% if profile_stat.stat.exists %}
-                              ✅ .nix-profile exists: {{ profile_target.stdout | default('not a link') }}
-                              {% if 'home-manager' in profile_target.stdout %}
-                              ✅ .nix-profile correctly linked to home-manager
-                              {% else %}
-                              ⚠️  .nix-profile points to: {{ profile_target.stdout | default('unknown') }}
-                              {% endif %}
-                              {% else %}
-                              ❌ .nix-profile does not exist
-                              {% endif %}
-                              ✅ Home Manager: {{ hm_version.stdout | default('not found') }}
-                              {% if atuin_version.rc == 0 %}
-                              ✅ Atuin: {{ atuin_version.stdout | default('found') }}
-                              {% else %}
-                              ⚠️  Atuin not found in PATH
-                              {% endif %}
-                              {% if fish_check.rc == 0 %}
-                              ✅ Fish shell available
-                              {% else %}
-                              ⚠️  Fish shell not found
-                              {% endif %}
-                              {% if fnox_version.rc == 0 %}
-                              ✅ Fnox: {{ fnox_version.stdout | default('found') }}
-                              {% else %}
-                              ⚠️  Fnox not found
-                              {% endif %}
-                              ✅ Cache-build-server configured: {{ cache_build_server_url }}
-      when: hm_installation.stat.exists
+    - name: Summarize bootstrap result
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          Nix: {{ nix_version.stdout }}
+          Home Manager: {{ home_manager_version.stdout }}
+          Repo pull changed: {{ git_pull.changed }}

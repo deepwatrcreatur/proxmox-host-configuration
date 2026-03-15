@@ -1,6 +1,6 @@
 # Ansible Setup for Proxmox Hosts
 
-This directory contains Ansible playbooks for automating Nix bootstrap and operational setup on Proxmox hosts.
+This directory contains Ansible playbooks for bootstrapping freshly installed Proxmox VE hosts over SSH.
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ Customize variables in `group_vars/proxmox.yml`:
 
 | Variable | Default | Description |
 |----------|----------|-------------|
-| `cache_build_server_host` | `cache-build-server` | Hostname of cache server |
+| `cache_build_server_host` | `attic-cache` | Hostname of Attic cache server |
 | `cache_build_server_port` | `5001` | Port for cache server |
 | `config_repo_url` | Required | `unified-nix-configuration` Git repository URL |
 | `config_repo_path` | `/root/flakes/unified-nix-configuration` | Local path for repo |
@@ -55,13 +55,12 @@ Customize variables in `group_vars/proxmox.yml`:
 
 The `setup-proxmox-root.yml` playbook performs:
 
-1. ✅ **Install Determinate Nix** - Uses the official installer script
-2. ✅ **Configure cache-build-server** - Adds as a substituter for faster builds
-3. ✅ **Clone configuration repo** - Pulls your flake configuration
-4. ✅ **Remove conflicting files** - Cleans up existing shell configs
-5. ✅ **Verify and fix profile symlinks** - Ensures `.nix-profile` points to home-manager
-6. ✅ **Activate home-manager** - Applies the `proxmox-root` configuration from `unified-nix-configuration`
-7. ✅ **Verify installation** - Checks that everything is working correctly
+1. ✅ **Install Determinate Nix** - Uses the official installer on a fresh host
+2. ✅ **Upgrade Determinate Nix** - Runs `determinate-nixd upgrade`
+3. ✅ **Write `nix.custom.conf`** - Configures Attic substituters, trusted substituters, and trusted public keys in Determinate's system-level config
+4. ✅ **Clone or pull the config repo** - Clones on first run and `git pull --ff-only` on later runs
+5. ✅ **Activate Home Manager** - Applies the `proxmox-root` configuration from `unified-nix-configuration`
+6. ✅ **Verify installation** - Checks `nix` and `home-manager` after activation
 
 ## Usage Examples
 
@@ -96,60 +95,22 @@ ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml --ski
 
 ## Troubleshooting
 
-### Atuin "command not found" Error
+### First activation conflicts
 
-If you see `atuin: command not found` after SSH login:
-
-#### Problem
-The `.nix-profile` symlink points to system profile instead of to home-manager profile:
-```bash
-# Wrong (causes error)
-/root/.nix-profile -> /nix/var/nix/profiles/per-user/root/profile
-
-# Correct
-/root/.nix-profile -> /nix/var/nix/profiles/per-user/root/home-manager
-```
-
-#### Solution 1: Manual Quick Fix
-
-SSH into the host and fix the symlink:
+Fresh Proxmox installs often have root dotfiles that block the first Home Manager activation. The playbook removes the common conflicting files before activation:
 
 ```bash
-ln -sf /nix/var/nix/profiles/per-user/root/home-manager ~/.nix-profile
-exec bash
+/root/.profile
+/root/.bashrc
+/root/.ssh/config
 ```
 
-#### Solution 2: Re-run Home-Manager Activation
+If activation still fails, SSH into the host and re-run manually:
 
 ```bash
 cd /root/flakes/unified-nix-configuration
-/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 nix run nixpkgs#home-manager -- switch --flake .#proxmox-root
-```
-
-#### Solution 3: Ansible Auto-Fix
-
-The playbook now automatically detects and fixes this issue. Re-run:
-
-```bash
-ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml
-```
-
-#### Verification
-
-After fixing, verify that the shell works:
-
-```bash
-# Check that profile is correct
-readlink ~/.nix-profile
-# Should output: /nix/var/nix/profiles/per-user/root/home-manager
-
-# Verify atuin is available
-which atuin
-atuin --version
-
-# Check that PATH includes home-manager
-echo $PATH | grep home-manager
 ```
 
 ## Troubleshooting
@@ -184,12 +145,12 @@ If activation fails, the playbook will continue and display errors. You can then
    /root/.nix-profile/bin/home-manager doctor
    ```
 
-### Cache-build-server not working
+### Attic cache not working
 
-Verify the cache server is accessible:
+Verify the cache is accessible:
 
 ```bash
-ansible proxmox -i inventory/proxmox.ini -m shell -a "curl -s http://cache-build-server:5001"
+ansible proxmox -i inventory/proxmox.ini -m shell -a "curl -s http://attic-cache:5001/cache-local/nix-cache-info"
 ```
 
 If it's not accessible, update `cache_build_server_host` in `group_vars/proxmox.yml`.
@@ -200,7 +161,7 @@ The playbook is designed to be idempotent (can run multiple times safely). Howev
 
 - Nix installation only runs if `/nix` doesn't exist
 - Git repo is updated if it exists
-- Cache-build-server config is added if not present
+- Determinate `nix.custom.conf` is rewritten to the desired cache settings
 
 ## Requirements
 
@@ -213,7 +174,7 @@ The playbook is designed to be idempotent (can run multiple times safely). Howev
 - Debian/Ubuntu-based system (Proxmox VE)
 - Root SSH access
 - Internet access (for Nix installation and package downloads)
-- Access to cache-build-server (optional but recommended)
+- Access to `attic-cache` (optional but recommended)
 
 ## Advanced Usage
 
