@@ -22,6 +22,10 @@
         state: present
         update_cache: true
 
+    - name: Upgrade base Proxmox packages before Nix bootstrap
+      ansible.builtin.apt:
+        upgrade: dist
+
     - name: Check whether Nix is already installed
       ansible.builtin.stat:
         path: /nix

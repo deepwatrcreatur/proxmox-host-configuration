@@ -55,12 +55,14 @@ Customize variables in `group_vars/proxmox.yml`:
 
 The `setup-proxmox-root.yml` playbook performs:
 
-1. ✅ **Install Determinate Nix** - Uses the official installer on a fresh host
-2. ✅ **Upgrade Determinate Nix** - Runs `determinate-nixd upgrade`
-3. ✅ **Write `nix.custom.conf`** - Configures Attic substituters, trusted substituters, and trusted public keys in Determinate's system-level config
-4. ✅ **Clone or pull the config repo** - Clones on first run and `git pull --ff-only` on later runs
-5. ✅ **Activate Home Manager** - Applies the `proxmox-root` configuration from `unified-nix-configuration`
-6. ✅ **Verify installation** - Checks `nix` and `home-manager` after activation
+1. ✅ **Install bootstrap packages** - Ensures `ca-certificates`, `curl`, and `git` are present
+2. ✅ **Run `apt dist-upgrade`** - Brings the fresh Proxmox install up to date before Nix bootstrap
+3. ✅ **Install Determinate Nix** - Uses the official installer on a fresh host
+4. ✅ **Upgrade Determinate Nix** - Runs `determinate-nixd upgrade`
+5. ✅ **Write `nix.custom.conf`** - Configures Attic substituters, trusted substituters, and trusted public keys in Determinate's system-level config
+6. ✅ **Clone or pull the config repo** - Clones on first run and `git pull --ff-only` on later runs
+7. ✅ **Activate Home Manager** - Applies the `proxmox-root` configuration from `unified-nix-configuration`
+8. ✅ **Verify installation** - Checks `nix` and `home-manager` after activation
 
 ## Usage Examples
 
