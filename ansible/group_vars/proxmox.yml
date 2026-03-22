@@ -3,13 +3,17 @@
 cache_build_server_host: attic-cache
 cache_build_server_port: 5001
 cache_build_server_url: "http://{{ cache_build_server_host }}:{{ cache_build_server_port }}/cache-local"
+nix_ci_cache_url: https://cache.nix-ci.com
+nix_ci_trusted_public_key: nix-ci:g3xV5BDTLtIBZr/A00IU1x0EtKKlb7YLgBN2SgYgM6A=
 
 nix_substituters:
   - "{{ cache_build_server_url }}"
+  - "{{ nix_ci_cache_url }}"
   - https://cache.nixos.org
 
 nix_trusted_substituters:
   - "{{ cache_build_server_url }}"
+  - "{{ nix_ci_cache_url }}"
   - https://cache.nixos.org
   - https://cache.flakehub.com
   - https://install.determinate.systems
@@ -18,7 +22,14 @@ nix_trusted_public_keys:
   - cache-local:GozZz7XFsUZ7xI5o/Q36JA/BFfjzONWOjiqC+zAhp2g=
   - cache-local:63xryK76L6y/NphTP/iS63yiYqldoWvVlWI0N8rgvBw=
   - cache-local:92faFQnuzuYUJ4ta3EYpqIaCMIZGenDoaPktsBucTe4=
+  - "{{ nix_ci_trusted_public_key }}"
   - cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+
+# Required netrc stanza for https://cache.nix-ci.com, for example:
+# machine cache.nix-ci.com
+# login <login>
+# password <token>
+nix_ci_netrc: ""
 
 apt_cache_host: apt-cache.deepwatercreature.com
 apt_cache_port: 3142

@@ -13,6 +13,13 @@
         state: restarted
 
   tasks:
+    - name: Assert NixCI cache credentials are provided
+      ansible.builtin.assert:
+        that:
+          - nix_ci_netrc | trim | length > 0
+        fail_msg: >-
+          Set nix_ci_netrc to a valid netrc stanza for cache.nix-ci.com before bootstrapping.
+
     - name: Ensure bootstrap packages are installed
       ansible.builtin.apt:
         name:
@@ -58,6 +65,19 @@
           trusted-substituters = {{ nix_trusted_substituters | join(' ') }}
           trusted-public-keys = {{ nix_trusted_public_keys | join(' ') }}
       notify: Restart nix-daemon
+
+    - name: Ensure root Nix config directory exists
+      ansible.builtin.file:
+        path: /root/.config/nix
+        state: directory
+        mode: "0700"
+
+    - name: Seed root NixCI netrc snippet before Home Manager activation
+      ansible.builtin.copy:
+        dest: /root/.config/nix/nix-ci-netrc
+        mode: "0600"
+        content: |
+          {{ nix_ci_netrc | trim }}
 
     - name: Flush nix-daemon restart handler before using nix
       ansible.builtin.meta: flush_handlers
