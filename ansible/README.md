@@ -14,14 +14,14 @@ ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml
 
 ## Directory Structure
 
-```
+```text
 ansible/
 ├── inventory/
-│   └── proxmox.ini          # Host inventory
+│   └── proxmox.ini
 ├── group_vars/
-│   └── proxmox.yml          # Variables for proxmox group
+│   └── proxmox.yml
 └── playbooks/
-    └── setup-proxmox-root.yml # Main playbook
+    └── setup-proxmox-root.yml
 ```
 
 ## Configuration
@@ -45,40 +45,69 @@ Customize variables in `group_vars/proxmox.yml`:
 
 | Variable | Default | Description |
 |----------|----------|-------------|
-| `cache_build_server_host` | `attic-cache` | Hostname of Attic cache server |
-| `cache_build_server_port` | `5001` | Port for cache server |
+| `cache_build_server_host` | `attic-cache` | Hostname of the local Attic cache |
+| `cache_build_server_port` | `5001` | Port for the Attic cache |
+| `nix_ci_cache_url` | `https://cache.nix-ci.com` | Paid fallback cache used after Attic |
+| `nix_ci_netrc` | Required | Ready-made netrc stanza for `cache.nix-ci.com` |
 | `config_repo_url` | Required | `unified-nix-configuration` Git repository URL |
 | `config_repo_path` | `/root/flakes/unified-nix-configuration` | Local path for repo |
 | `home_manager_output` | `proxmox-root` | Home Manager output name |
 
-## Playbook Steps
+## Bootstrap Behavior
 
 The `setup-proxmox-root.yml` playbook performs:
 
-1. ✅ **Install bootstrap packages** - Ensures `ca-certificates`, `curl`, and `git` are present
-2. ✅ **Run `apt dist-upgrade`** - Brings the fresh Proxmox install up to date before Nix bootstrap
-3. ✅ **Install Determinate Nix** - Uses the official installer on a fresh host
-4. ✅ **Upgrade Determinate Nix** - Runs `determinate-nixd upgrade`
-5. ✅ **Write `nix.custom.conf`** - Configures Attic substituters, trusted substituters, and trusted public keys in Determinate's system-level config
-6. ✅ **Clone or pull the config repo** - Clones on first run and `git pull --ff-only` on later runs
-7. ✅ **Activate Home Manager** - Applies the `proxmox-root` configuration from `unified-nix-configuration`
-8. ✅ **Verify installation** - Checks `nix` and `home-manager` after activation
+1. Installs bootstrap packages.
+2. Runs `apt dist-upgrade`.
+3. Installs or upgrades Determinate Nix.
+4. Writes `/etc/nix/nix.custom.conf` with substituters and trusted keys.
+5. Seeds `/root/.config/nix/nix-ci-netrc` before the first Home Manager activation.
+6. Clones or updates `unified-nix-configuration`.
+7. Activates `.#proxmox-root`.
+8. Verifies `nix` and `home-manager`.
+
+The intended cache order is:
+
+1. `http://attic-cache:5001/cache-local`
+2. `https://cache.nix-ci.com`
+3. `https://cache.nixos.org`
+
+## Supplying `nix_ci_netrc`
+
+Provide a valid netrc stanza for NixCI through inventory, extra vars, or Ansible Vault.
+
+Expected value:
+
+```netrc
+machine cache.nix-ci.com
+login <login>
+password <token>
+```
+
+Example with extra vars:
+
+```bash
+ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml \
+  -e 'nix_ci_netrc=machine cache.nix-ci.com\nlogin <login>\npassword <token>'
+```
+
+If you already manage secrets with Ansible Vault, put `nix_ci_netrc` in a vaulted vars file instead of passing it on the command line.
 
 ## Usage Examples
 
-### Run on single host
+### Run on a single host
 
 ```bash
 ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml --limit 10.10.11.47
 ```
 
-### Run on all proxmox hosts
+### Run on all Proxmox hosts
 
 ```bash
 ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml
 ```
 
-### Check mode (dry run)
+### Check mode
 
 ```bash
 ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml --check
@@ -90,18 +119,13 @@ ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml --che
 ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml -v
 ```
 
-### Skip specific tasks
-```bash
-ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml --skip-tags news
-```
-
 ## Troubleshooting
 
 ### First activation conflicts
 
 Fresh Proxmox installs often have root dotfiles that block the first Home Manager activation. The playbook removes the common conflicting files before activation:
 
-```bash
+```text
 /root/.profile
 /root/.bashrc
 /root/.ssh/config
@@ -115,103 +139,43 @@ cd /root/flakes/unified-nix-configuration
 nix run nixpkgs#home-manager -- switch --flake .#proxmox-root
 ```
 
-## Troubleshooting
+### Cache authentication issues
+
+Check the files that the bootstrap flow is expected to create:
+
+```bash
+cat /etc/nix/nix.custom.conf
+cat /root/.config/nix/nix-ci-netrc
+cat /nix/var/determinate/netrc
+```
+
+If `cache.nix-ci.com` is present in `nix.custom.conf` but missing from the netrc files, fix the `nix_ci_netrc` variable and rerun the playbook.
 
 ### Connection issues
 
 ```bash
-# Test SSH connection
 ansible proxmox -i inventory/proxmox.ini -m ping
-
-# Check if host is reachable
 ansible proxmox -i inventory/proxmox.ini -m shell -a "hostname"
 ```
 
-### Home-manager activation fails
-
-If activation fails, the playbook will continue and display errors. You can then:
-
-1. SSH into the host and run manually:
-   ```bash
-   cd /root/flakes/unified-nix-configuration
-   nix run nixpkgs#home-manager -- switch --flake .#proxmox-root
-   ```
-
-2. Check home-manager logs:
-   ```bash
-   cat ~/.local/state/home-manager/home-manager.log
-   ```
-
-3. Run home-manager doctor:
-   ```bash
-   /root/.nix-profile/bin/home-manager doctor
-   ```
-
-### Attic cache not working
-
-Verify the cache is accessible:
-
-```bash
-ansible proxmox -i inventory/proxmox.ini -m shell -a "curl -s http://attic-cache:5001/cache-local/nix-cache-info"
-```
-
-If it's not accessible, update `cache_build_server_host` in `group_vars/proxmox.yml`.
-
-### Idempotency Issues
-
-The playbook is designed to be idempotent (can run multiple times safely). However:
-
-- Nix installation only runs if `/nix` doesn't exist
-- Git repo is updated if it exists
-- Determinate `nix.custom.conf` is rewritten to the desired cache settings
-
 ## Requirements
 
-### Control Machine
+### Control machine
+
 - Python 3.6+
 - Ansible 2.9+
 - SSH access to target hosts
 
-### Target Machines
+### Target machines
+
 - Debian/Ubuntu-based system (Proxmox VE)
 - Root SSH access
-- Internet access (for Nix installation and package downloads)
-- Access to `attic-cache` (optional but recommended)
-
-## Advanced Usage
-
-### Custom SSH key
-
-```bash
-ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml --private-key ~/.ssh/my_key
-```
-
-### Custom inventory file
-
-```bash
-ansible-playbook -i /path/to/custom.ini playbooks/setup-proxmox-root.yml
-```
-
-### Override variables inline
-
-```bash
-ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml \
-  -e "config_repo_url=https://github.com/user/repo.git" \
-  -e "home_manager_output=my-output"
-```
+- Internet access for Nix installation and package downloads
+- Access to `attic-cache`
+- Access to `cache.nix-ci.com`
 
 ## Related Documentation
 
-- [Proxmox Root Setup Guide](../docs/proxmox-root-setup.md) - Manual setup steps
-- [Ansible Documentation](https://docs.ansible.com/) - General Ansible usage
-- [Determinate Nix](https://determinate.systems/) - Nix distribution used
-
-## Contributing
-
-When adding new tasks to the playbook:
-
-1. Ensure tasks are idempotent where possible
-2. Use proper handlers (e.g., `restart nix-daemon`)
-3. Add variables to `group_vars/proxmox.yml` instead of hardcoding
-4. Update this README with new configuration options
-5. Test on a single host first (`--limit`)
+- [Proxmox Root Setup Guide](../docs/proxmox-root-setup.md)
+- [Determinate Nix](https://determinate.systems/)
+- [Ansible Documentation](https://docs.ansible.com/)

@@ -1,166 +1,88 @@
 # Proxmox Root Setup Guide
 
-This guide covers setting up the `proxmox-root` Home Manager configuration on a new Proxmox host.
+This guide covers bootstrapping the `proxmox-root` Home Manager configuration on a freshly installed Proxmox VE host.
 
-## Prerequisites
+`unified-nix-configuration` remains the Nix source of truth for the `proxmox-root` output. This repo owns the operational bootstrap material that gets a Proxmox host to the point where that Home Manager configuration can activate cleanly.
 
-- Proxmox VE host
-- SSH access to the host
-- `unified-nix-configuration` repo available on a build machine or the target host
-- `cache-build-server` running and accessible on the network
+## Current Bootstrap Path
 
-## Initial Setup
+The supported path is the Ansible playbook in [`ansible/playbooks/setup-proxmox-root.yml`](../ansible/playbooks/setup-proxmox-root.yml).
 
-### 1. Clone the Configuration Repo
+It does four important things before the first `home-manager switch`:
 
-SSH into the Proxmox host and clone the repo:
+1. Installs or upgrades Determinate Nix.
+2. Writes `/etc/nix/nix.custom.conf` with the intended substituter order.
+3. Seeds `/root/.config/nix/nix-ci-netrc` with NixCI credentials.
+4. Activates `.#proxmox-root` from `unified-nix-configuration`.
 
-```bash
-ssh root@<proxmox-host>
-cd /root
-git clone <your-unified-nix-configuration-url> flakes/unified-nix-configuration
+## Cache Order
+
+Proxmox hosts should use binary caches in this order:
+
+1. `http://attic-cache:5001/cache-local`
+2. `https://cache.nix-ci.com`
+3. `https://cache.nixos.org`
+
+That gives you the fastest path through the local Attic cache first, then the paid NixCI cache, with the public NixOS cache as the final fallback.
+
+## Required Secret
+
+Before running the playbook, set the Ansible variable `nix_ci_netrc` to a valid netrc stanza for `cache.nix-ci.com`.
+
+Expected format:
+
+```netrc
+machine cache.nix-ci.com
+login <login>
+password <token>
 ```
 
-### 2. Configure Nix Substituters
+The playbook copies that value to:
 
-Add the cache-build-server as a substituter to speed up builds:
+- `/root/.config/nix/nix-ci-netrc`
+
+That file is then consumed by the `proxmox-root` Home Manager configuration in `unified-nix-configuration`, which appends it into Determinate Nix's managed netrc.
+
+## Recommended Bootstrap Flow
+
+From the control machine:
 
 ```bash
-cat >> /etc/nix/nix.conf << 'EOF'
-extra-substituters = http://cache-build-server:5001
-extra-trusted-substituters = http://cache-build-server:5001
-EOF
-
-systemctl restart nix-daemon
+cd /home/deepwatrcreatur/flakes/proxmox-host-configuration/ansible
+ansible-playbook -i inventory/proxmox.ini playbooks/setup-proxmox-root.yml --limit <proxmox-host>
 ```
 
-This enables fetching pre-built packages from your cache-server, dramatically reducing build times.
+The playbook expects:
 
-## Deployment Methods
+- SSH access as `root`
+- `config_repo_url` and related repo variables set correctly
+- `nix_ci_netrc` provided through Ansible vars, inventory, or vault-managed vars
 
-### Method 1: Direct Deployment (Recommended)
+## Manual Recovery
 
-Build and activate directly on the Proxmox host:
+If the Home Manager step fails after bootstrap, SSH to the Proxmox host and retry manually:
 
 ```bash
 cd /root/flakes/unified-nix-configuration
+. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 nix run nixpkgs#home-manager -- switch --flake .#proxmox-root
 ```
 
-**Pros:** Simple, no intermediate steps
-**Cons:** Uses CPU on Proxmox host for first-time builds
-
-### Method 2: Build Remotely (Faster)
-
-Build on a more powerful machine (e.g., `phoenix`) and copy to target:
-
-#### From phoenix/build machine:
+Useful checks:
 
 ```bash
-cd /path/to/flakes/unified-nix-configuration
-nix build .#homeConfigurations.proxmox-root.activationPackage
+cat /etc/nix/nix.custom.conf
+cat /root/.config/nix/nix-ci-netrc
+cat /nix/var/determinate/netrc
 ```
 
-#### Copy closure to target:
+You should see:
 
-```bash
-nix copy --to ssh://root@<proxmox-host> result
-```
-
-Or pipe closure via stdin:
-
-```bash
-nix path-info -r result | nix copy --to ssh://root@<proxmox-host> --stdin
-```
-
-#### Activate on target:
-
-```bash
-ssh root@<proxmox-host>
-/root/.nix-profile/bin/home-manager switch --flake /root/flakes/unified-nix-configuration#proxmox-root
-```
-
-### Method 3: Using deploy-rs (Best for Multiple Hosts)
-
-If you have `deploy-rs` set up, you can deploy with a single command:
-
-```bash
-deploy .#proxmox-root
-```
-
-See the deploy-rs documentation for setup instructions.
-
-## Troubleshooting
-
-### File Clobber Errors
-
-On first run, you may see errors about files being clobbered:
-
-```
-Existing file '/root/.profile' would be clobbered
-Existing file '/root/.bashrc' would be clobbered
-Existing file '/root/.ssh/config' would be clobbered
-```
-
-**Solution:** Remove the conflicting files (this is a fresh setup):
-
-```bash
-rm -f /root/.profile /root/.bashrc /root/.ssh/config
-```
-
-Then re-run the activation command.
-
-### Build Taking Too Long
-
-If builds are slow on the Proxmox host:
-
-1. **Check cache-server is configured:**
-
-   ```bash
-   cat /etc/nix/nix.conf | grep cache-build-server
-   ```
-
-2. **Use Method 2** (build remotely) to offload compilation
-
-3. **Verify cache-server is accessible:**
-
-   ```bash
-   curl http://cache-build-server:5001
-   ```
-
-### Unknown Setting Warnings
-
-You may see warnings like:
-
-```
-warning: unknown setting 'eval-cores'
-warning: unknown setting 'lazy-trees'
-```
-
-These are harmless - they come from experimental Nix features that may not be available in your version.
-
-## Verification
-
-After successful activation, verify the setup:
-
-```bash
-# Check home-manager version
-home-manager --version
-
-# Check shell is configured correctly
-echo $SHELL
-
-# Test key tools
-fish --version
-fnox --version
-```
-
-## Next Steps
-
-- Read the news: `home-manager news`
-- Review the Nix source of truth in `unified-nix-configuration`
-- Customize the Proxmox host flow in this repo and the Home Manager output in `unified-nix-configuration`
+- the Attic cache first in `substituters`
+- `https://cache.nix-ci.com` present as the second cache
+- a valid NixCI stanza in the netrc files
 
 ## Related Documentation
 
-- [Proxmox Apt Cache](./proxmox-apt-cache.md) - Local apt-cacher-ng service for Proxmox hosts
+- [Ansible Setup for Proxmox Hosts](../ansible/README.md)
+- [Proxmox Apt Cache](./proxmox-apt-cache.md)
