@@ -4,16 +4,29 @@ This guide covers bootstrapping the `proxmox-root` Home Manager configuration on
 
 `unified-nix-configuration` remains the Nix source of truth for the `proxmox-root` output. This repo owns the operational bootstrap material that gets a Proxmox host to the point where that Home Manager configuration can activate cleanly.
 
-## Current Bootstrap Path
+## What This Bootstrap Is For
 
-The supported path is the Ansible playbook in [`ansible/playbooks/setup-proxmox-root.yml`](../ansible/playbooks/setup-proxmox-root.yml).
+The supported bootstrap path is the Ansible playbook in [`ansible/playbooks/setup-proxmox-root.yml`](../ansible/playbooks/setup-proxmox-root.yml).
 
-It does four important things before the first `home-manager switch`:
+It is designed for the repeatable, low-ceremony part of Proxmox host setup:
 
-1. Installs or upgrades Determinate Nix.
-2. Writes `/etc/nix/nix.custom.conf` with the intended substituter order.
-3. Seeds `/root/.config/nix/nix-ci-netrc` with NixCI credentials.
-4. Activates `.#proxmox-root` from `unified-nix-configuration`.
+1. Install or upgrade Determinate Nix.
+2. Write `/etc/nix/nix.custom.conf` with the intended substituter order.
+3. Seed `/root/.config/nix/nix-ci-netrc` with NixCI credentials.
+4. Activate `.#proxmox-root` from `unified-nix-configuration`.
+
+It is not the place to manage long-lived operator key material or to rekey agenix recipients.
+
+## What This Bootstrap Does Not Do
+
+The playbook intentionally does not try to do these tasks:
+
+- collect the new host's SSH host key for you
+- create or rotate a persistent root SSH client keypair
+- update `secrets.nix` in `unified-nix-configuration`
+- re-encrypt agenix secrets for the new host
+
+Those are operator steps. They happen infrequently and require higher-trust credentials than the bootstrap itself.
 
 ## Cache Order
 
@@ -57,6 +70,21 @@ The playbook expects:
 - SSH access as `root`
 - `config_repo_url` and related repo variables set correctly
 - `nix_ci_netrc` provided through Ansible vars, inventory, or vault-managed vars
+
+A Semaphore job can handle this bootstrap path if it has the same SSH and secret inputs.
+
+## After Bootstrap
+
+Once the first Home Manager activation succeeds, decide whether the host also needs onboarding into your longer-lived secret and SSH identity flows.
+
+That follow-up may include:
+
+- recording the host's SSH host key
+- deciding whether to create a root user keypair on the host
+- adding the host as an agenix recipient in `unified-nix-configuration`
+- rekeying secrets from a trusted operator environment
+
+Keep those tasks separate from the bootstrap unless you deliberately want Semaphore to hold the high-trust private key material needed for rekeying.
 
 ## Manual Recovery
 

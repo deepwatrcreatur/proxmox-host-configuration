@@ -7,6 +7,7 @@ This repo holds Proxmox host operational material that is not the Nix source of 
 - Proxmox host administration docs
 - Ansible playbooks for Debian/Proxmox hosts
 - Bootstrap runbooks for Determinate Nix and `proxmox-root`
+- operator runbooks for new-host onboarding and secret recipient changes
 - apt proxy rollout
 - host-local operational scripts
 - ad hoc Proxmox artifacts that are not managed by Nix
@@ -15,9 +16,13 @@ This repo holds Proxmox host operational material that is not the Nix source of 
 
 The Nix source of truth for Proxmox root Home Manager and the rest of the homelab still lives in `unified-nix-configuration`.
 
-This repo is responsible for getting a fresh Proxmox install to the point where that Home Manager configuration can activate reliably.
+This repo is responsible for getting a fresh Proxmox install to the point where that Home Manager configuration can activate reliably, and for documenting the operator follow-up steps that happen around that bootstrap.
 
-Current bootstrap expectations:
+## Two Kinds of Work
+
+### Regular, automation-friendly work
+
+This is the work that fits Semaphore or Ansible well:
 
 - install or upgrade Determinate Nix
 - configure binary caches in this order:
@@ -26,6 +31,17 @@ Current bootstrap expectations:
   3. `https://cache.nixos.org`
 - seed the NixCI netrc stanza used by `proxmox-root`
 - run the first `home-manager switch`
+- rerun the bootstrap or maintenance playbooks later
+
+### Infrequent, operator-only work
+
+This is the work that should stay in a high-trust operator flow unless you intentionally automate it:
+
+- inspect or record the new host's SSH host key
+- decide whether to create a persistent root user keypair on the host
+- add new SSH or agenix recipient keys to `unified-nix-configuration`
+- rekey agenix secrets for the new host
+- commit and push onboarding-related repo changes
 
 ## Layout
 
@@ -38,4 +54,4 @@ Current bootstrap expectations:
 
 - `ansible/playbooks/setup-proxmox-root.yml` for first-host bootstrap
 - `ansible/README.md` for playbook variables and secret expectations
-- `docs/proxmox-root-setup.md` for the operational runbook
+- `docs/proxmox-root-setup.md` for the bootstrap runbook

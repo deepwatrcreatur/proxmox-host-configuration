@@ -24,6 +24,18 @@ ansible/
     └── setup-proxmox-root.yml
 ```
 
+## What This Playbook Is For
+
+`setup-proxmox-root.yml` is the repeatable bootstrap path for a fresh Proxmox host.
+
+It is a good fit for:
+
+- local operator runs from a trusted host
+- Semaphore jobs that have SSH access and the required cache secret
+- rerunning the same bootstrap later when you want to converge a host back to the expected state
+
+It is not meant to own long-lived SSH identity capture or agenix rekeying.
+
 ## Configuration
 
 ### Inventory (`inventory/proxmox.ini`)
@@ -71,6 +83,17 @@ The intended cache order is:
 1. `http://attic-cache:5001/cache-local`
 2. `https://cache.nix-ci.com`
 3. `https://cache.nixos.org`
+
+## What This Playbook Deliberately Leaves Out
+
+This bootstrap does not attempt to:
+
+- collect the new host's SSH host key
+- create a persistent root SSH client keypair on the host
+- update agenix recipients in `unified-nix-configuration`
+- rekey secrets for the new host
+
+Those steps are better handled as operator-run follow-up tasks because they require higher-trust credentials and happen infrequently.
 
 ## Supplying `nix_ci_netrc`
 
