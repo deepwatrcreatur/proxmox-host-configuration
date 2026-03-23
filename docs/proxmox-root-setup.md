@@ -86,6 +86,11 @@ That follow-up may include:
 
 Keep those tasks separate from the bootstrap unless you deliberately want Semaphore to hold the high-trust private key material needed for rekeying.
 
+Detailed follow-up runbooks:
+
+- [Proxmox Post-Bootstrap Onboarding](./proxmox-post-bootstrap-onboarding.md)
+- [Proxmox Agenix Recipient Onboarding](./proxmox-agenix-recipient-onboarding.md)
+
 ## Manual Recovery
 
 If the Home Manager step fails after bootstrap, SSH to the Proxmox host and retry manually:
@@ -113,4 +118,6 @@ You should see:
 ## Related Documentation
 
 - [Ansible Setup for Proxmox Hosts](../ansible/README.md)
+- [Proxmox Post-Bootstrap Onboarding](./proxmox-post-bootstrap-onboarding.md)
+- [Proxmox Agenix Recipient Onboarding](./proxmox-agenix-recipient-onboarding.md)
 - [Proxmox Apt Cache](./proxmox-apt-cache.md)

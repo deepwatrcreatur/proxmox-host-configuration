@@ -55,3 +55,5 @@ This is the work that should stay in a high-trust operator flow unless you inten
 - `ansible/playbooks/setup-proxmox-root.yml` for first-host bootstrap
 - `ansible/README.md` for playbook variables and secret expectations
 - `docs/proxmox-root-setup.md` for the bootstrap runbook
+- `docs/proxmox-post-bootstrap-onboarding.md` for SSH identity follow-up
+- `docs/proxmox-agenix-recipient-onboarding.md` for agenix recipient onboarding
