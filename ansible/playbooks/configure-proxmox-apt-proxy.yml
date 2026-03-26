@@ -51,7 +51,9 @@
         update_cache: yes
 
     - name: Verify the configured proxy value
-      shell: apt-config dump | grep -i '^Acquire::\\(http\\|https\\)::Proxy'
+      shell: |
+        apt-config dump | grep -i '^Acquire::\(http\|https\)::Proxy-Auto-Detect'
+        /usr/local/bin/apt-proxy-auto-detect https://download.proxmox.com/debian/pve/dists/trixie/InRelease
       register: apt_proxy_dump
       changed_when: false
 

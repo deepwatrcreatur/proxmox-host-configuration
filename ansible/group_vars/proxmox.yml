@@ -31,7 +31,7 @@ nix_trusted_public_keys:
 # password <token>
 nix_ci_netrc: ""
 
-apt_cache_host: apt-cache.deepwatercreature.com
+apt_cache_host: 10.10.11.42
 apt_cache_port: 3142
 apt_cache_url: "http://{{ apt_cache_host }}:{{ apt_cache_port }}"
 
