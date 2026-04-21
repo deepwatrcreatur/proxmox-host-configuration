@@ -112,6 +112,18 @@
           - "{{ config_repo_path }}"
       changed_when: false
 
+    - name: Ensure config repo origin matches inventory URL
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ config_repo_path }}"
+          - remote
+          - set-url
+          - origin
+          - "{{ config_repo_url }}"
+      changed_when: false
+
     - name: Pull latest config repo changes
       ansible.builtin.command:
         argv:
@@ -122,6 +134,8 @@
           - --ff-only
           - origin
           - "{{ config_repo_branch }}"
+      environment:
+        GIT_CONFIG_GLOBAL: /dev/null
       register: git_pull
       changed_when: >
         'Already up to date.' not in git_pull.stdout and
@@ -158,7 +172,7 @@
       changed_when: false
 
     - name: Verify Home Manager is available
-      ansible.builtin.command: /root/.nix-profile/bin/home-manager --version
+      ansible.builtin.command: /root/.nix-profile/home-path/bin/home-manager --version
       register: home_manager_version
       changed_when: false
 

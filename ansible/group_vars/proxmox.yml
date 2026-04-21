@@ -1,18 +1,22 @@
 ---
 # Default variables for proxmox hosts
 cache_build_server_host: attic-cache
+cache_build_server_ip: 10.10.11.39
 cache_build_server_port: 5001
 cache_build_server_url: "http://{{ cache_build_server_host }}:{{ cache_build_server_port }}/cache-local"
+cache_build_server_ip_url: "http://{{ cache_build_server_ip }}:{{ cache_build_server_port }}/cache-local"
 nix_ci_cache_url: https://cache.nix-ci.com
 nix_ci_trusted_public_key: nix-ci:g3xV5BDTLtIBZr/A00IU1x0EtKKlb7YLgBN2SgYgM6A=
 
 nix_substituters:
   - "{{ cache_build_server_url }}"
+  - "{{ cache_build_server_ip_url }}"
   - "{{ nix_ci_cache_url }}"
   - https://cache.nixos.org
 
 nix_trusted_substituters:
   - "{{ cache_build_server_url }}"
+  - "{{ cache_build_server_ip_url }}"
   - "{{ nix_ci_cache_url }}"
   - https://cache.nixos.org
   - https://cache.flakehub.com

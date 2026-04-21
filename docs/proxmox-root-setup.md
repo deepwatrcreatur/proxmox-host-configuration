@@ -33,10 +33,11 @@ Those are operator steps. They happen infrequently and require higher-trust cred
 Proxmox hosts should use binary caches in this order:
 
 1. `http://attic-cache:5001/cache-local`
-2. `https://cache.nix-ci.com`
-3. `https://cache.nixos.org`
+2. `http://10.10.11.39:5001/cache-local`
+3. `https://cache.nix-ci.com`
+4. `https://cache.nixos.org`
 
-That gives you the fastest path through the local Attic cache first, then the paid NixCI cache, with the public NixOS cache as the final fallback.
+That gives you the fastest path through the local Attic cache first, an IP fallback for fresh hosts that cannot yet resolve `attic-cache`, then the paid NixCI cache, with the public NixOS cache as the final fallback.
 
 ## Required Secret
 
@@ -80,6 +81,7 @@ Once the first Home Manager activation succeeds, decide whether the host also ne
 That follow-up may include:
 
 - recording the host's SSH host key
+- adding the host to `lib/hosts.nix` in `unified-nix-configuration` so generated SSH config exposes the `pve-*` alias
 - deciding whether to create a root user keypair on the host
 - adding the host as an agenix recipient in `unified-nix-configuration`
 - rekeying secrets from a trusted operator environment
@@ -121,3 +123,4 @@ You should see:
 - [Proxmox Post-Bootstrap Onboarding](./proxmox-post-bootstrap-onboarding.md)
 - [Proxmox Agenix Recipient Onboarding](./proxmox-agenix-recipient-onboarding.md)
 - [Proxmox Apt Cache](./proxmox-apt-cache.md)
+- [Intel 82599 / X520 Unsupported SFP Recovery](./intel-82599-unsupported-sfp.md)
