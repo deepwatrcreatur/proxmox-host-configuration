@@ -74,6 +74,20 @@ The playbook expects:
 
 A Semaphore job can handle this bootstrap path if it has the same SSH and secret inputs.
 
+## GitHub Transport Policy
+
+Use HTTPS for the bootstrap checkout of `unified-nix-configuration`.
+
+The inventory should keep:
+
+```ini
+config_repo_url=https://github.com/deepwatrcreatur/unified-nix-configuration.git
+```
+
+The playbook also runs repo pulls with `GIT_CONFIG_GLOBAL=/dev/null`. This is intentional: some configured roots rewrite `https://github.com/` to `ssh://git@github.com/` to avoid unauthenticated GitHub API limits or to access private repositories, but that rewrite is too fragile for first-bootstrap automation. It makes a public repo update depend on root's GitHub client key, GitHub's host key, and working DNS for `github.com`.
+
+After Home Manager and secrets are active, a settled host may still use SSH or token-backed Nix/GitHub access where appropriate. Bootstrap should remain deterministic and should not require a root GitHub SSH identity.
+
 ## After Bootstrap
 
 Once the first Home Manager activation succeeds, decide whether the host also needs onboarding into your longer-lived secret and SSH identity flows.
@@ -114,8 +128,35 @@ cat /nix/var/determinate/netrc
 You should see:
 
 - the Attic cache first in `substituters`
-- `https://cache.nix-ci.com` present as the second cache
+- `http://10.10.11.39:5001/cache-local` present as the DNS-independent Attic fallback
+- `https://cache.nix-ci.com` present before the public NixOS cache
 - a valid NixCI stanza in the netrc files
+
+### DNS During Bootstrap
+
+If Nix or Git repeatedly fails with `Could not resolve host` or `Resolving timed out`, verify the host's resolver before changing Git transport:
+
+```bash
+cat /etc/resolv.conf
+dig +time=2 +tries=1 cache.nixos.org A
+dig +time=2 +tries=1 @1.1.1.1 cache.nixos.org A
+getent hosts attic-cache
+```
+
+On hosts where Tailscale has overwritten `/etc/resolv.conf` but MagicDNS is not answering, disable Tailscale DNS for that host and use normal resolvers:
+
+```bash
+tailscale set --accept-dns=false
+printf "search deepwatercreature.com\nnameserver 1.1.1.1\nnameserver 9.9.9.9\n" > /etc/resolv.conf
+grep -q " attic-cache" /etc/hosts || printf "10.10.11.39 attic-cache attic-cache.deepwatercreature.com\n" >> /etc/hosts
+```
+
+For reboot persistence on Proxmox ifupdown hosts, add the DNS settings under the `vmbr0` static interface:
+
+```text
+    dns-nameservers 1.1.1.1 9.9.9.9
+    dns-search deepwatercreature.com
+```
 
 ## Related Documentation
 

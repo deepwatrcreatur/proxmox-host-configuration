@@ -65,6 +65,18 @@ Customize variables in `group_vars/proxmox.yml`:
 | `config_repo_path` | `/root/flakes/unified-nix-configuration` | Local path for repo |
 | `home_manager_output` | `proxmox-root` | Home Manager output name |
 
+### GitHub Transport
+
+Keep `config_repo_url` as HTTPS for this bootstrap flow:
+
+```ini
+config_repo_url=https://github.com/deepwatrcreatur/unified-nix-configuration.git
+```
+
+The playbook forces repo pulls to ignore root's global Git config with `GIT_CONFIG_GLOBAL=/dev/null`. This prevents a host-local rewrite such as `https://github.com/` to `ssh://git@github.com/` from turning a public bootstrap update into a dependency on root's GitHub SSH identity.
+
+This does not forbid SSH for GitHub generally. Settled hosts can still use SSH or token-backed GitHub access for private repositories and rate-limit avoidance after Home Manager and secrets are active. The bootstrap path should stay HTTPS-first and deterministic.
+
 ## Bootstrap Behavior
 
 The `setup-proxmox-root.yml` playbook performs:
@@ -81,8 +93,9 @@ The `setup-proxmox-root.yml` playbook performs:
 The intended cache order is:
 
 1. `http://attic-cache:5001/cache-local`
-2. `https://cache.nix-ci.com`
-3. `https://cache.nixos.org`
+2. `http://10.10.11.39:5001/cache-local`
+3. `https://cache.nix-ci.com`
+4. `https://cache.nixos.org`
 
 ## What This Playbook Deliberately Leaves Out
 
