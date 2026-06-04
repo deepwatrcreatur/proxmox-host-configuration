@@ -48,6 +48,7 @@ This is the work that should stay in a high-trust operator flow unless you inten
 - `ansible/` for Proxmox host rollout and maintenance
 - `docs/` for Proxmox operational runbooks
 - `scripts/` for host-side helper scripts
+- `vm-configs/` for checked-in Proxmox VM config baselines and examples
 - `MIGRATION_FROM_UNIFIED.md` for the current repo boundary
 
 ## Start Here
@@ -57,3 +58,4 @@ This is the work that should stay in a high-trust operator flow unless you inten
 - `docs/proxmox-root-setup.md` for the bootstrap runbook
 - `docs/proxmox-post-bootstrap-onboarding.md` for SSH identity follow-up
 - `docs/proxmox-agenix-recipient-onboarding.md` for agenix recipient onboarding
+- `docs/inference-vm-ovmf-boot.md` for the OVMF/Limine inference VM runbook
