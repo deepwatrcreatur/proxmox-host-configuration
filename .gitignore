@@ -1,0 +1,23 @@
+# Local .terraform and OpenTofu working directories
+.terraform/
+.tofu/
+
+# OpenTofu state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# OpenTofu crash logs
+crash.log
+crash.*.log
+
+# CLI configuration and lock files
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore lock file if environment packages/providers vary
+# (Keep tracked if pinned for CI)
