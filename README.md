@@ -48,6 +48,7 @@ This is the work that should stay in a high-trust operator flow unless you inten
 - `ansible/` for Proxmox host rollout and maintenance
 - `docs/` for Proxmox operational runbooks
 - `scripts/` for host-side helper scripts
+- `tofu/` for declarative OpenTofu Proxmox VM management
 - `vm-configs/` for checked-in Proxmox VM config baselines and examples
 - `MIGRATION_FROM_UNIFIED.md` for the current repo boundary
 
@@ -60,3 +61,4 @@ This is the work that should stay in a high-trust operator flow unless you inten
 - `docs/proxmox-agenix-recipient-onboarding.md` for agenix recipient onboarding
 - `docs/inference-vm-ovmf-boot.md` for the OVMF/Limine inference VM runbook
 - `docs/synology-dsm-zfs-storage.md` for Synology DSM VM & ZFS storage architecture runbook
+- `tofu/README.md` for OpenTofu VM automation and importing running guests
