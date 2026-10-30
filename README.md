@@ -59,3 +59,4 @@ This is the work that should stay in a high-trust operator flow unless you inten
 - `docs/proxmox-post-bootstrap-onboarding.md` for SSH identity follow-up
 - `docs/proxmox-agenix-recipient-onboarding.md` for agenix recipient onboarding
 - `docs/inference-vm-ovmf-boot.md` for the OVMF/Limine inference VM runbook
+- `docs/synology-dsm-zfs-storage.md` for Synology DSM VM & ZFS storage architecture runbook
